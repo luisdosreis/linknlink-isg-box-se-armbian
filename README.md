@@ -111,14 +111,24 @@ Included board/runtime artifacts:
 
 ## Prerequisites
 
-On a Debian/Ubuntu build host:
+Use a Debian or Ubuntu Linux build host with Docker enabled. The build downloads
+Armbian sources, builds kernel packages in the Armbian build framework, then
+uses local image tools to repack the raw image into Rockchip FactoryTool format.
+
+This flow has been tested on Debian GNU/Linux 13.4 `trixie` x86_64 with Linux
+`6.12.85+deb13-amd64`.
+
+Install the required host tools:
 
 ```bash
 sudo apt update
-sudo apt install git rsync ca-certificates curl 7zip util-linux coreutils e2fsprogs python3 docker.io cargo rustc
+sudo apt install git rsync ca-certificates curl python3 docker.io cargo rustc util-linux coreutils e2fsprogs 7zip
 sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
+
+If your Ubuntu release does not provide the `7zip` package, install
+`p7zip-full` instead. The repacker needs the `7z` command.
 
 Log out and back in after adding your user to the Docker group.
 
@@ -174,7 +184,7 @@ image-tools/repack-afptool-rs.sh
 Or specify an image:
 
 ```bash
-image-tools/repack-afptool-rs.sh ./build build/output/images/<raw-image>.img
+image-tools/repack-afptool-rs.sh build/output/images/<raw-image>.img
 ```
 
 Output:
