@@ -72,6 +72,18 @@ names.
 | Power LED | Not controlled by Linux | red LED | Fixed power indicator |
 | Blue user LED | GPIO4 PC1 | `/sys/class/leds/blue:user` | Working |
 
+## Supported External Hardware
+
+| Hardware | USB ID | Linux driver | Linux name | Status |
+| --- | --- | --- | --- | --- |
+| LinknLink RD1100+ USB Zigbee 3.0 dongle | `1a86:7523` | `ch341`, `usbserial` | `/dev/ttyUSB0`, `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` | Working - USB serial adapter detected |
+| SONOFF Zigbee 3.0 USB Dongle Plus V2 / ZBDongle-E | `1a86:55d4` | `cdc_acm` | `/dev/ttyACM0`, `/dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_<serial>-if00` | Working - USB ACM serial adapter detected |
+
+These adapters expose their Zigbee radios as serial devices. The kernel only
+needs to expose the serial device; Zigbee support is handled by applications
+such as Home Assistant ZHA or Zigbee2MQTT. Use the stable
+`/dev/serial/by-id/...` path in application configuration.
+
 ## Sources, Blobs, and Tools
 
 Open-source tools:
