@@ -35,70 +35,19 @@ any other consequence of using these files, scripts, builds, or instructions.
 - SeekWave SWT6621S SDIO Wi-Fi/Bluetooth driver build extension.
 - Rockchip FactoryTool repack support using a locally patched `apftool-rs`.
 
-## Hardware Configuration
+## Hardware
 
-The port targets the LinknLink iSG Box SE variant identified as a Rockchip
-RK3528 board with a SeekWave SWT6621S SDIO Wi-Fi/Bluetooth combo.
+Board hardware mapping and tested external USB Zigbee adapters are documented in
+[HARDWARE.md](HARDWARE.md).
 
-- SoC: Rockchip RK3528.
-- CPU: quad-core Arm, product specs list up to 2.0 GHz.
-- RAM: 4 GB.
-- Internal storage: 64 GB eMMC.
-- Power input: DC 5 V / 2 A, 5.5 x 2.1 mm barrel jack.
-- External ports: DC power, AV/headphone jack, HDMI, RJ45 Ethernet, USB1, USB2.
-- Ethernet: 100M RJ45, wired to RK3528 `gmac0` RMII.
-- Wireless: SeekWave SWT6621S SDIO Wi-Fi/Bluetooth combo.
-- Product wireless spec: 2.4 GHz / 5 GHz Wi-Fi, Bluetooth 5.4.
+## Sources
 
-Device-tree aliases use kernel binding names, such as `ethernet0` and `mmc0`.
-Linux userspace names use the normal names exposed by the kernel and udev, such
-as `eth0`, `wlan0`, `hci0`, and `HDMI-A-1`. The image adds
-`net.ifnames=0 biosdevname=0` so Ethernet and Wi-Fi use classic interface
-names.
-
-| Hardware | Device tree | Linux name | Status |
-| --- | --- | --- | --- |
-| eMMC | `mmc0 = &sdhci` | usually `/dev/mmcblk0` | Working - internal boot storage |
-| SDIO Wi-Fi/Bluetooth host | `mmc1 = &sdio0` | MMC host `mmc1` | Working |
-| Ethernet | `ethernet0 = &gmac0` | `eth0` | Working |
-| Wi-Fi | SDIO child device | `wlan0` | Working |
-| Bluetooth | `seekwcn-boot`, `skwbt` | `hci0` | Working |
-| Serial debug console | `serial2 = &uart2` | `ttyS2` | Working - 1,500,000 baud 8N1 |
-| HDMI video | `&hdmi`, `&hdmiphy` | `HDMI-A-1` | Working |
-| HDMI audio | `hdmi-sound` | ALSA `rockchip,hdmi` | Working |
-| Analog audio / AV jack | `acodec-sound`, `&acodec`, `&sai2` | ALSA `rk3528-acodec` | Working |
-| USB host | RK3528 USB host nodes | `usb1`, `usb2`, etc. | Root hubs enumerate |
-| Loader button / ADC key | `adc-keys` | `/dev/input/event*` | Exposed as ADC key input; also used for Loader mode |
-| Power LED | Not controlled by Linux | red LED | Fixed power indicator |
-| Blue user LED | GPIO4 PC1 | `/sys/class/leds/blue:user` | Working |
-
-## Supported External Hardware
-
-| Hardware | USB ID | Linux driver | Linux name | Status |
-| --- | --- | --- | --- | --- |
-| LinknLink RD1100+ USB Zigbee 3.0 dongle | `1a86:7523` | `ch341`, `usbserial` | `/dev/ttyUSB0`, `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` | Working - USB serial adapter detected |
-| SONOFF Zigbee 3.0 USB Dongle Plus V2 / ZBDongle-E | `1a86:55d4` | `cdc_acm` | `/dev/ttyACM0`, `/dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_<serial>-if00` | Working - USB ACM serial adapter detected |
-
-These adapters expose their Zigbee radios as serial devices. The kernel only
-needs to expose the serial device; Zigbee support is handled by applications
-such as Home Assistant ZHA or Zigbee2MQTT. Use the stable
-`/dev/serial/by-id/...` path in application configuration.
-
-## Sources, Blobs, and Tools
-
-Open-source tools:
+The build is based on these upstream projects:
 
 - Armbian build: `https://github.com/armbian/build`
 - `apftool-rs`: `https://github.com/suyulin/apftool-rs`
 
-External tools not included:
-
-- Rockchip `upgrade_tool`: proprietary flashing utility used to flash the final
-  FactoryTool image.
-- `imgRePackerRK`: closed-source alternative repacker, not part of the
-  supported flow here.
-
-Included board/runtime artifacts:
+## Included Blobs and Runtime Artifacts
 
 - `resources/blobs/rk3528/MiniLoaderAll.bin`: RK3528 loader used by the
   FactoryTool image because the generic loader did not initialize this box DDR
@@ -108,6 +57,13 @@ Included board/runtime artifacts:
 - `resources/drivers/seekwave-swt6621s-recon/`: reconstructed SeekWave
   SWT6621S driver tree used to build `skw_sdio_lite.ko`,
   `swt6621s_wifi.ko`, and `skwbt.ko`.
+
+## Alternative Flashing Tools
+
+- Rockchip `upgrade_tool`: proprietary flashing utility used to flash the final
+  FactoryTool image.
+- `imgRePackerRK`: closed-source alternative repacker, not part of the
+  supported flow here.
 
 ## Prerequisites
 
