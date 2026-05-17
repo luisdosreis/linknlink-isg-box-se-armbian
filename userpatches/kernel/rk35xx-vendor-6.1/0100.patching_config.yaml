@@ -1,0 +1,15 @@
+config:
+  name: rk35xx-vendor-6.1-linknlink-isg-box-se
+  kind: kernel
+  type: vendor
+  branch: rk-6.1-rkr5.1
+
+  dts-directories:
+    - { source: "dt", target: "arch/arm64/boot/dts/rockchip" }
+
+  auto-patch-dt-makefile:
+    - { incremental: true, directory: "arch/arm64/boot/dts/rockchip", config-var: "CONFIG_ARCH_ROCKCHIP" }
+
+  patches-to-git:
+    do-not-commit-regexes:
+      - "^arch/([a-zA-Z0-9]+)/boot/dts/([a-zA-Z0-9]+)/Makefile$"

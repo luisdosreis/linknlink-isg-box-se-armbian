@@ -1,0 +1,21 @@
+.codex
+.codex/
+.cache/
+build/
+output/
+logs/
+.firmware-backups/
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.log
+*.img
+*.img.dump/
+*.zip
+*.tar.gz
+
+# Editor and OS noise
+*.swp
+*~
+.DS_Store
