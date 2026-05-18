@@ -219,3 +219,7 @@ Recommended first boot path:
   to run.
 - Add an optional first-boot flow that installs and configures Home Assistant
   after network setup.
+
+<a href="https://www.buymeacoffee.com/luismarcalreis" target="_blank" title="buymeacoffee">
+  <img src="https://iili.io/JoQcIJS.md.png"  alt="buymeacoffee-black-badge" style="width: 104px;">
+</a>
