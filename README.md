@@ -3,20 +3,21 @@
 Version: `v26.05 Rolling`
 Kernel: `6.1.115-vendor-rk35xx`
 
-Release-oriented Armbian build overlay for the LinknLink iSG Box SE RK3528
-gateway box.
+Armbian build overlay for the LinknLink iSG Box SE - RK3528.
 
-This repository builds a minimal Armbian server image, adds the board device
-tree and required Wi-Fi/Bluetooth runtime pieces, repacks the raw Armbian image
-as a Rockchip FactoryTool image, and flashes it to the box eMMC with Rockchip
-USB tooling.
+What you get:
+
+* A minimal Armbian server image with board's device tree
+* Wi-Fi and Bluetooth necessary blob files
+* Repack raw Armbian image as Rockchip FactoryTool image
+* Flashe to eMMC using Rockchip USB tools
 
 ## Disclaimer
 
 Use this at your own risk. Flashing unofficial firmware can brick hardware,
-erase data, break vendor recovery paths, and void warranty. I will not be held
-responsible for damaged devices, lost data, lost warranty, failed flashes, or
-any other consequence of using these files, scripts, builds, or instructions.
+erase data, break vendor recovery paths, and void warranty.
+I will not be held responsible for damaged devices, 
+or any other consequence of using this content.
 
 ## What This Image Includes
 
@@ -25,15 +26,12 @@ any other consequence of using these files, scripts, builds, or instructions.
 - Rockchip RK35xx vendor kernel branch: `BRANCH=vendor`.
 - Validated Linux kernel family: RK35xx vendor 6.1.x, tested on
   `6.1.115-vendor-rk35xx`.
-- Board config: `linknlink-isg-box-se`.
 - Board DTS: `rk3528-linknlink-isg-box-se.dts`.
 - NetworkManager with DHCP Ethernet on `eth0`.
-- SSH server enabled for first login; Armbian first-run regenerates SSH host
-  keys on the device.
+- SSH server enabled for first login.
 - Wi-Fi userspace: `iw`, `wpasupplicant`, `network-manager`.
-- Bluetooth userspace: BlueZ.
 - SeekWave SWT6621S SDIO Wi-Fi/Bluetooth driver build extension.
-- Rockchip FactoryTool repack support using a locally patched `apftool-rs`.
+- Rockchip FactoryTool repack support using a custom patched `apftool-rs`.
 
 ## Hardware
 
@@ -51,28 +49,17 @@ The build is based on these upstream projects:
 
 - `resources/blobs/rk3528/MiniLoaderAll.bin`: RK3528 loader used by the
   FactoryTool image because the generic loader did not initialize this box DDR
-  reliably. Treat as a vendor/Rockchip binary blob.
+  reliably.
 - `resources/firmware/seekwave-swt6621s/`: SeekWave SWT6621S firmware and NV
-  files. Treat as vendor firmware blobs.
+  files.
 - `resources/drivers/seekwave-swt6621s-recon/`: reconstructed SeekWave
-  SWT6621S driver tree used to build `skw_sdio_lite.ko`,
-  `swt6621s_wifi.ko`, and `skwbt.ko`.
-
-## Alternative Flashing Tools
-
-- Rockchip `upgrade_tool`: proprietary flashing utility used to flash the final
-  FactoryTool image.
-- `imgRePackerRK`: closed-source alternative repacker, not part of the
-  supported flow here.
+  SWT6621S driver tree used to build `skw_sdio_lite.ko`, `swt6621s_wifi.ko`, and `skwbt.ko`.
 
 ## Prerequisites
 
-Use a Debian or Ubuntu Linux build host with Docker enabled. The build downloads
-Armbian sources, builds kernel packages in the Armbian build framework, then
-uses local image tools to repack the raw image into Rockchip FactoryTool format.
+A Debian or Ubuntu Linux build host with Docker enabled.
 
-This flow has been tested on Debian GNU/Linux 13.4 `trixie` x86_64 with Linux
-`6.12.85+deb13-amd64`.
+Building has been tested on Debian GNU/Linux 13.4 `trixie` x86_64 with Linux `6.12.85+deb13-amd64`.
 
 Install the required host tools:
 
@@ -176,6 +163,13 @@ sudo "$UPGRADE_TOOL" uf output/factory/apftool-rs-patched/<raw-image>-factorytoo
 ```
 
 Power-cycle the box after the flash completes.
+
+## Alternative Flashing Tools
+
+- Rockchip `upgrade_tool`: proprietary flashing utility used to flash the final
+  FactoryTool image.
+- `imgRePackerRK`: closed-source alternative repacker, not part of the
+  supported flow here.
 
 ## Optional Cleanup
 
