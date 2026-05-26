@@ -5,6 +5,9 @@ Kernel: `6.1.115-vendor-rk35xx`
 
 Armbian build overlay for the LinknLink iSG Box SE - RK3528.
 
+Discussion and support here:
+https://forum.armbian.com/topic/58945-trying-to-boot-armbian-on-linknlink-isg-box-se/
+
 What you get:
 
 * A minimal Armbian server image with board's device tree
