@@ -187,27 +187,38 @@ unpack_rs = src_dir / "src/unpack.rs"
 
 main_text = main_rs.read_text()
 main_text = main_text.replace(
-    "Chip family (e.g., RK29XX, RK30XX, RK31XX, RK32XX, RK3368, RK3326, RK3562, RK3566, PX30)",
-    "Chip family (e.g., RK29XX, RK30XX, RK31XX, RK32XX, RK3368, RK3326, RK3528, RK3562, RK3566, PX30)",
+    "Chip name (e.g., RK3588, RK3566, RK3562, RK3399, PX30, RK32XX); optional when rkfw-header.bin from unpack is present",
+    "Chip name (e.g., RK3588, RK3566, RK3562, RK3528, RK3399, PX30, RK32XX); optional when rkfw-header.bin from unpack is present",
 )
 main_rs.write_text(main_text)
 
 pack_text = pack_rs.read_text()
 old = '        "RK3566" | "RK3568" => Ok(0x38),\n        "RK3528" => Ok(0x39),'
 new = (
-    '        // LinknLink RK3528 devices expect the legacy-compatible support-type byte 0x38.\n'
-    '        // Keep an explicit raw override for testing newer encodings.\n'
-    '        "RK3528" | "RK3528_LEGACY" => Ok(0x38),\n'
-    '        "RK3528_RAW" => Ok(0x39),\n'
-    '        "RK3566" | "RK3568" => Ok(0x38),'
+    '        "RK3566" | "RK3568" => Ok(0x38),\n'
+    '        "RK3528" | "RK3528_LEGACY" | "RK3528_RAW" => Ok(0x39),'
 )
 if old not in pack_text:
     raise SystemExit("expected RK3528 mapping not found in src/pack.rs")
+
+pack_text = pack_text.replace(old, new)
+old = 'pub fn encode_chip_field(chip: &str) -> Result<[u8; 4]> {\n    let family_code = chip_name_to_code(chip)?;'
+new = (
+    'pub fn encode_chip_field(chip: &str) -> Result<[u8; 4]> {\n'
+    '    // The LinknLink iSG Box SE FactoryTool loader requires the legacy\n'
+    '    // support-type field, rather than the modern ASCII "8253" encoding.\n'
+    '    if matches!(chip.to_uppercase().as_str(), "RK3528" | "RK3528_LEGACY") {\n'
+    '        return Ok([0x38, 0, 0, 0]);\n'
+    '    }\n\n'
+    '    let family_code = chip_name_to_code(chip)?;'
+)
+if old not in pack_text:
+    raise SystemExit("expected chip field encoder not found in src/pack.rs")
 pack_rs.write_text(pack_text.replace(old, new))
 
 unpack_text = unpack_rs.read_text()
-old = '        0x38 => chip = Some("RK3566/RK3568"),\n        0x39 => chip = Some("RK3528"),'
-new = '        0x38 => chip = Some("RK3528 legacy / RK3566 / RK3568"),\n        0x39 => chip = Some("RK3528 raw"),'
+old = '            0x38 => chip = Some("RK3566/RK3568"),\n            0x39 => chip = Some("RK3528"),'
+new = '            0x38 => chip = Some("RK3528 legacy / RK3566 / RK3568"),\n            0x39 => chip = Some("RK3528 raw"),'
 if old not in unpack_text:
     raise SystemExit("expected RK3528 unpack mapping not found in src/unpack.rs")
 unpack_rs.write_text(unpack_text.replace(old, new))
