@@ -68,6 +68,10 @@ function pre_package_kernel_image__build_isg_seekwave_driver() {
 		display_alert "Extension: ${EXTENSION}: built stale skw_sdio_lite.ko" "${bsp_module}" "err"
 		exit 1
 	fi
+	if ! strings "${bsp_module}" | grep -q 'fw_deepsleep'; then
+		display_alert "Extension: ${EXTENSION}: built stale skw_sdio_lite.ko" "${bsp_module}" "err"
+		exit 1
+	fi
 
 	if ! strings "${bsp_module}" | grep -q 'SWT6621S probe: bind wifi pdev_name='; then
 		display_alert "Extension: ${EXTENSION}: built stale skw_sdio_lite.ko" "${bsp_module}" "err"

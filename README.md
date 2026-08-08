@@ -141,7 +141,7 @@ output/factory/apftool-rs-patched/<raw-image>-factorytool.img
 
 The repacker:
 
-- clones/builds `apftool-rs` into `.cache/repack-afptool-rs/`;
+- fetches and builds the current upstream `afptool-rs` `main` on every run;
 - applies local RK3528 compatibility edits;
 - extracts `uboot`, `boot`, and `rootfs` from the raw image;
 - injects `resources/blobs/rk3528/MiniLoaderAll.bin`;

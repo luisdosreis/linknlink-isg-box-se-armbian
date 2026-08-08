@@ -5,6 +5,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_NAME="$(basename "$0" .sh)"
 WORK_DIR="${REPACK_WORK_DIR:-$REPO_DIR/.cache/$SCRIPT_NAME}"
 AFPTOOL_BIN="${AFPTOOL_BIN:-$WORK_DIR/bin/afptool-rs}"
+APFTOOL_RS_URL="${APFTOOL_RS_URL:-https://github.com/suyulin/apftool-rs.git}"
+APFTOOL_RS_REF="${APFTOOL_RS_REF:-main}"
 FACTORY_PACKER="afptool-rs"
 FACTORY_OUTPUT_DIR="${FACTORY_OUTPUT_DIR:-$REPO_DIR/output/factory/apftool-rs-patched}"
 FACTORY_WORK_DIR="${FACTORY_WORK_DIR:-$WORK_DIR/tmp}"
@@ -57,7 +59,9 @@ Options:
 
 Environment:
   REPACK_WORK_DIR       Override the default .cache/repack-afptool-rs/ path
-  AFPTOOL_BIN           Use or create an afptool-rs binary at this path
+  AFPTOOL_BIN           Write the rebuilt afptool-rs binary to this path
+  APFTOOL_RS_URL         afptool-rs Git repository (default: upstream)
+  APFTOOL_RS_REF         afptool-rs branch or tag to build (default: main)
 EOF
 }
 
@@ -148,18 +152,16 @@ cleanup_path() {
 }
 
 build_patched_afptool() {
-  local tool_work_dir src_dir out_bin src_url src_ref
+  local tool_work_dir src_dir out_bin
   tool_work_dir="$WORK_DIR/apftool-rs"
   src_dir="$tool_work_dir/src"
   out_bin="$AFPTOOL_BIN"
-  src_url="${APFTOOL_RS_URL:-https://github.com/suyulin/apftool-rs.git}"
-  src_ref="${APFTOOL_RS_REF:-main}"
 
-  log_section "Build patched afptool-rs"
-  log_warn "patched afptool-rs was not found"
+  log_section "Build current afptool-rs"
   log_item "output" "$out_bin"
   log_item "work dir" "$WORK_DIR"
-  log_item "reuse" "later runs use this binary while it exists"
+  log_item "source" "$APFTOOL_RS_URL"
+  log_item "ref" "$APFTOOL_RS_REF"
 
   mkdir -p "$tool_work_dir" "$(dirname "$out_bin")"
 
@@ -167,8 +169,9 @@ build_patched_afptool() {
     safe_rm_rf "$src_dir"
     mkdir -p "$src_dir"
     rsync -a --delete "$APFTOOL_RS_SRC/" "$src_dir/"
-  elif [[ ! -d "$src_dir/.git" ]]; then
-    git clone --depth=1 --branch "$src_ref" "$src_url" "$src_dir"
+  else
+    safe_rm_rf "$src_dir"
+    git clone --depth=1 --branch "$APFTOOL_RS_REF" "$APFTOOL_RS_URL" "$src_dir"
   fi
 
   if ! grep -q 'RK3528_LEGACY' "$src_dir/src/pack.rs"; then
@@ -214,16 +217,11 @@ PY
   cargo build --quiet --release --manifest-path "$src_dir/Cargo.toml"
   install -Dm755 "$src_dir/target/release/afptool-rs" "$out_bin"
 
+  log_item "revision" "$(git -C "$src_dir" rev-parse --short HEAD 2>/dev/null || echo local-source)"
   log_item "built binary" "$out_bin"
 }
 
-if [[ ! -x "$AFPTOOL_BIN" ]]; then
-  build_patched_afptool
-else
-  log_section "Use existing afptool-rs"
-  log_item "binary" "$AFPTOOL_BIN"
-  log_item "override" "set AFPTOOL_BIN to use another binary"
-fi
+build_patched_afptool
 
 find_latest_image() {
   find "$ARMBIAN_BUILD_DIR/output/images" -maxdepth 1 -type f -name '*.img' | sort | tail -n 1
@@ -330,32 +328,6 @@ resolve_boot_dtb_path() {
   return 1
 }
 
-resolve_afptool() {
-  if [[ -n "$AFPTOOL_BIN" ]]; then
-    [[ -x "$AFPTOOL_BIN" ]] || {
-      echo "AFPTOOL_BIN is set but not executable: $AFPTOOL_BIN" >&2
-      return 1
-    }
-    echo "$AFPTOOL_BIN"
-    return 0
-  fi
-
-  if command -v afptool-rs >/dev/null 2>&1; then
-    command -v afptool-rs
-    return 0
-  fi
-
-  for candidate in \
-    "$REPO_DIR/.cache/apftool-rs/bin/afptool-rs"
-  do
-    [[ -x "$candidate" ]] || continue
-    echo "$candidate"
-    return 0
-  done
-
-  return 1
-}
-
 align_to_0x800_blocks() {
   local size
   size="$1"
@@ -410,34 +382,6 @@ write_partition_metadata() {
   padded_blocks="$(align_to_0x800_blocks "$size")"
   printf 'rootfs,Image/rootfs.img,0x%08X,0x%08X,0x%08X,0x%08X,0x%08X\n' \
     "$rootfs_param_sectors" "$rootfs_param_start" "$part_offset" "$padded_blocks" "$size" >> "$metadata_path"
-}
-
-wrap_parameter_for_afptool() {
-  local parameter_path
-  parameter_path="$1"
-
-  python3 - "$parameter_path" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-data = path.read_bytes()
-
-if data.startswith(b"PARMT\x01\x00\x00"):
-    raise SystemExit(0)
-
-poly = 0x04c11db7
-crc = 0
-for byte in data:
-    crc ^= byte << 24
-    for _ in range(8):
-        if crc & 0x80000000:
-            crc = ((crc << 1) ^ poly) & 0xffffffff
-        else:
-            crc = (crc << 1) & 0xffffffff
-
-path.write_bytes(b"PARMT\x01\x00\x00" + data + crc.to_bytes(4, "little"))
-PY
 }
 
 run_afptool() {
@@ -691,8 +635,6 @@ TYPE: GPT
 CMDLINE:mtdparts=rk29xxnand:0x00002000@0x00002000(security),0x00004000@0x00004000(uboot),$(printf '0x%08X' "$boot_sectors")@$(printf '0x%08X' "$((boot_param_start))")(boot:bootable),$(printf '0x%08X' "$((rootfs_param_sectors))")@$(printf '0x%08X' "$((rootfs_param_start))")(rootfs:grow)
 EOF
 
-  wrap_parameter_for_afptool "$dump_dir/Image/parameter.txt"
-
   write_partition_metadata \
     "$dump_dir" \
     "$boot_sectors" \
@@ -726,9 +668,9 @@ main() {
 
   resolve_bootloader_blob >/dev/null
 
-  packer_bin="$(resolve_afptool)" || {
-    echo "afptool-rs not found." >&2
-    echo "Install afptool-rs in PATH, set AFPTOOL_BIN, or allow this script to build it." >&2
+  packer_bin="$AFPTOOL_BIN"
+  [[ -x "$packer_bin" ]] || {
+    echo "Expected rebuilt afptool-rs binary was not found: $packer_bin" >&2
     return 1
   }
 

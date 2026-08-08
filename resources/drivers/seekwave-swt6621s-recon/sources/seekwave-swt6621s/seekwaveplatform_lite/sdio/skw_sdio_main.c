@@ -23,6 +23,7 @@
 #include <linux/version.h>
 #include <linux/ktime.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/pm_runtime.h>
@@ -69,6 +70,7 @@ static struct sdio_driver skw_sdio_driver;
 static struct mutex dloader_mutex;
 static int skw_sdio_set_dma_type(unsigned int address, unsigned int dma_type);
 static int skw_sdio_slp_feature_en(unsigned int address, unsigned int slp_en);
+static int skw_sdio_apply_fw_deepsleep(bool enabled);
 static int skw_sdio_host_irq_init(unsigned int irq_gpio_num);
 static int skw_WIFI_service_start(void);
 static int skw_WIFI_service_stop(void);
@@ -78,6 +80,14 @@ static int skw_sdio_host_check(struct skw_sdio_data_t *skw_sdio);
 extern int sdio_reset_comm(struct mmc_card *card);
 extern void kernel_restart(char *cmd);
 extern void skw_sdio_exception_work(struct work_struct *work);
+
+/*
+ * Keep this policy in terms that match the user-visible behavior.  The
+ * firmware protocol uses the inverse value: 0 enables deep sleep and 1
+ * disables it.  Default to low latency for an always-on appliance.
+ */
+static bool fw_deepsleep;
+static DEFINE_MUTEX(skw_fw_deepsleep_lock);
 static int skw_sdio_reg_reset_cp(void);
 extern int  cp_detect_sleep_mode;
 extern char skw_cp_ver;
@@ -1192,12 +1202,67 @@ static int skw_sdio_slp_feature_en(unsigned int address, unsigned int slp_en)
 	int ret = 0;
 	ret = skw_sdio_writeb(address,slp_en);
 	if(ret !=0){
-		skw_sdio_err("no-sleep support en write fail, ret=%d\n",ret);
+		skw_sdio_err("set firmware deep sleep state failed, ret=%d\n", ret);
 		return -1;
 	}
-	skw_sdio_info("no-sleep_support_enable:%d\n ",slp_en);
+	skw_sdio_info("fw_deepsleep:%s\n", slp_en ? "disabled" : "enabled");
 	return 0;
 }
+
+static int skw_sdio_apply_fw_deepsleep(bool enabled)
+{
+	struct skw_sdio_data_t *skw_sdio = skw_sdio_get_data();
+	unsigned int firmware_value = enabled ? 0 : 1;
+	int ret;
+
+	if (!skw_sdio || !skw_sdio->boot_data)
+		return -ENODEV;
+
+	mutex_lock(&skw_sdio->transfer_mutex);
+	ret = skw_sdio_slp_feature_en(
+		skw_sdio->boot_data->slp_disable_addr, firmware_value);
+	if (!ret)
+		skw_sdio->boot_data->slp_disable = firmware_value;
+	mutex_unlock(&skw_sdio->transfer_mutex);
+
+	return ret;
+}
+
+static int skw_set_fw_deepsleep_param(const char *value,
+				      const struct kernel_param *kp)
+{
+	bool enabled;
+	struct skw_sdio_data_t *skw_sdio;
+	int ret;
+
+	ret = kstrtobool(value, &enabled);
+	if (ret)
+		return ret;
+
+	mutex_lock(&skw_fw_deepsleep_lock);
+	skw_sdio = skw_sdio_get_data();
+	if (skw_sdio && skw_sdio->boot_data) {
+		ret = skw_sdio_apply_fw_deepsleep(enabled);
+		if (ret) {
+			mutex_unlock(&skw_fw_deepsleep_lock);
+			return ret;
+		}
+	}
+	*(bool *)kp->arg = enabled;
+	mutex_unlock(&skw_fw_deepsleep_lock);
+
+	return 0;
+}
+
+static const struct kernel_param_ops skw_fw_deepsleep_param_ops = {
+	.set = skw_set_fw_deepsleep_param,
+	.get = param_get_bool,
+};
+
+module_param_cb(fw_deepsleep, &skw_fw_deepsleep_param_ops,
+			&fw_deepsleep, 0644);
+MODULE_PARM_DESC(fw_deepsleep,
+	"Enable SeekWave firmware deep sleep (default: false for low latency)");
 
 /****************************************************************
  *Description:set the dma type SDMA, AMDA
@@ -1239,8 +1304,7 @@ static int skw_sdio_boot_cp(int boot_mode)
 
 	skw_sdio_set_dma_type(skw_sdio->boot_data->dma_type_addr,
 			skw_sdio->boot_data->dma_type);
-	skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,
-			skw_sdio->boot_data->slp_disable);
+	skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 
 	//2:download the boot bin 1CPALL 2, wifi 3,bt
 	skw_sdio_info("line:%d dram_dl_size = %d iram_dl_size = %d iram_dl_addr = 0x%x, dram_dl_addr = 0x%x\n", __LINE__,
@@ -1688,8 +1752,7 @@ int skw_boot_loader(struct seekwave_device *boot_data)
 			if(skw_sdio->boot_data->gpio_in >= 0) {
 				skw_sdio_set_dma_type(skw_sdio->boot_data->dma_type_addr,
 						skw_sdio->boot_data->dma_type);
-				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,
-						skw_sdio->boot_data->slp_disable);
+				skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 				func = skw_sdio->sdio_func[FUNC_1];
 				sdio_claim_host(func);
 				try_to_wakeup_modem(max_ch_num);
@@ -1988,8 +2051,7 @@ static int skw_sdio_cpdebug_boot(void)
 	skw_sdio_info("not download CP from AP!!!!\n");
 	skw_sdio_set_dma_type(skw_sdio->boot_data->dma_type_addr,
 			skw_sdio->boot_data->dma_type);
-	skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,
-			skw_sdio->boot_data->slp_disable);
+	skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 	if(skw_sdio->gpio_in >=0) {
 		func = skw_sdio->sdio_func[FUNC_1];
 		sdio_claim_host(func);
@@ -2229,7 +2291,7 @@ int skw_sdio_dloader(int service_index)
 				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,1);
 				send_cp_wakeup_signal(skw_sdio);
 				skw_sdio->boot_data->skw_dloader_module(SKW_WIFI);
-				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,0);
+				skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 				send_cp_wakeup_signal(skw_sdio);
 			}else{
 				skw_sdio_warn("the gpio_in=%d gpio_out=%d is not set\n",skw_sdio->gpio_in,skw_sdio->gpio_out);
@@ -2240,7 +2302,7 @@ int skw_sdio_dloader(int service_index)
 				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,1);
 				send_cp_wakeup_signal(skw_sdio);
 				skw_sdio->boot_data->skw_dloader_module(SKW_BT);
-				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,0);
+				skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 				send_cp_wakeup_signal(skw_sdio);
 			}else{
 				skw_sdio_warn("the gpio_in=%d gpio_out=%d is not set\n",skw_sdio->gpio_in,skw_sdio->gpio_out);
@@ -2251,7 +2313,7 @@ int skw_sdio_dloader(int service_index)
 				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,1);
 				send_cp_wakeup_signal(skw_sdio);
 				skw_sdio->boot_data->skw_dloader_module(SKW_ALL);
-				skw_sdio_slp_feature_en(skw_sdio->boot_data->slp_disable_addr,0);
+				skw_sdio_apply_fw_deepsleep(fw_deepsleep);
 				send_cp_wakeup_signal(skw_sdio);
 			}else{
 				skw_sdio_warn("the gpio_in=%d gpio_out=%d is not set\n",skw_sdio->gpio_in,skw_sdio->gpio_out);
@@ -2613,18 +2675,8 @@ void skw_get_sdio_config(char *buffer, int size)
 	ret += sprintf(&buffer[ret], "dma type:\t%u (%s)\n", skw_use_sdma, str);
 
 
-	switch (skw_sdio->boot_data->slp_disable) {
-	case 1:
-		str = "Disable";
-		break;
-	case 0:
-		str = "Enable";
-		break;
-	default:
-		str = "Enable";
-		break;
-	}
-	ret += sprintf(&buffer[ret], "fw deepsleep:\t%u (%s)\n", skw_sdio->boot_data->slp_disable, str);
+	str = skw_sdio->boot_data->slp_disable ? "disabled" : "enabled";
+	ret += sprintf(&buffer[ret], "fw deepsleep:\t%s\n", str);
 
 	ret += sprintf(&buffer[ret], "host_active:\t%u\n", skw_sdio->host_active);
 	ret += sprintf(&buffer[ret], "device_active:\t%u\n", skw_sdio->device_active);

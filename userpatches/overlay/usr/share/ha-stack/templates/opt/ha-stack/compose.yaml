@@ -1,0 +1,89 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    network_mode: host
+    privileged: true
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+    volumes:
+      - ./homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  zigbee2mqtt:
+    image: ghcr.io/koenkk/zigbee2mqtt:latest
+    container_name: zigbee2mqtt
+    restart: unless-stopped
+    profiles:
+      - zigbee
+    depends_on:
+      - mosquitto
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+    ports:
+      - "8080:8080"
+    devices:
+      - ${ZIGBEE_DEVICE:-/dev/ttyACM0}:/dev/ttyACM0
+    volumes:
+      - ./zigbee2mqtt:/app/data
+      - /run/udev:/run/udev:ro
+
+  esphome:
+    image: ghcr.io/esphome/esphome:stable
+    container_name: esphome
+    restart: unless-stopped
+    profiles:
+      - esphome
+    network_mode: host
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+    volumes:
+      - ./esphome:/config
+      - /etc/localtime:/etc/localtime:ro
+
+  matter:
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    container_name: matter
+    restart: unless-stopped
+    profiles:
+      - matter
+    network_mode: host
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+    volumes:
+      - ./matter:/data
+      - /run/dbus:/run/dbus:ro
+
+  zwave-js-ui:
+    image: zwavejs/zwave-js-ui:latest
+    container_name: zwave-js-ui
+    restart: unless-stopped
+    profiles:
+      - zwave
+    environment:
+      TZ: ${TZ:-Europe/Lisbon}
+      SESSION_SECRET: ${ZWAVE_SESSION_SECRET:-replace-this-with-random-text}
+    ports:
+      - "8091:8091"
+      - "3000:3000"
+    devices:
+      - ${ZWAVE_DEVICE:-/dev/ttyUSB0}:/dev/zwave
+    volumes:
+      - ./zwave-js-ui:/usr/src/app/store

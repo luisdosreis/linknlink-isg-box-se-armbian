@@ -1,0 +1,10 @@
+homeassistant: true
+permit_join: false
+mqtt:
+  server: mqtt://mosquitto:1883
+frontend:
+  port: 8080
+serial:
+  port: /dev/ttyACM0
+advanced:
+  network_key: GENERATE

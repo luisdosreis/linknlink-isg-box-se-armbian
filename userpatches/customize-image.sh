@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+install_home_assistant_setup_helpers() {
+    local overlay_dir="/tmp/overlay"
+
+    [[ -d "$overlay_dir" ]] || {
+        echo "Home Assistant setup helper overlay is not available" >&2
+        exit 1
+    }
+
+    install -d -m 0755 /usr/local/bin /usr/share/ha-stack /etc/profile.d
+
+    cp -a "${overlay_dir}/usr/local/bin/." /usr/local/bin/
+    cp -a "${overlay_dir}/usr/share/ha-stack/." /usr/share/ha-stack/
+    cp -a "${overlay_dir}/etc/profile.d/." /etc/profile.d/
+
+    chmod 0755 /usr/local/bin/ha-setup /usr/local/bin/ha-app /usr/local/bin/ha-stack-check
+    chmod 0644 /etc/profile.d/zz-ha-setup-prompt.sh
+}
+
 Main() {
     if command -v systemctl >/dev/null 2>&1; then
         systemctl disable armbian-led-state.service 2>/dev/null || true
@@ -54,6 +72,14 @@ EOF
             echo "skwbt"
         fi
     } >/etc/modules-load.d/swt6621s-wifi.conf
+
+    install -d -m 0755 /etc/modprobe.d
+    cat >/etc/modprobe.d/seekwave-power.conf <<'EOF'
+# Keep the always-on iSG Box Wi-Fi responsive while idle. Set to 1 to allow
+# firmware deep sleep and reduce power use.
+options skw_sdio_lite fw_deepsleep=0
+EOF
+    chmod 0644 /etc/modprobe.d/seekwave-power.conf
 
     install -d -m 0755 /etc/NetworkManager/system-connections /data
 
@@ -225,6 +251,7 @@ EOF
         systemctl enable ssh.service 2>/dev/null || systemctl enable ssh 2>/dev/null || true
     fi
 
+    install_home_assistant_setup_helpers
 }
 
 Main
