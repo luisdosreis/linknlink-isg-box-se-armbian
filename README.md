@@ -78,18 +78,13 @@ If your Ubuntu release does not provide the `7zip` package, install
 
 Log out and back in after adding your user to the Docker group.
 
-Clone this repository:
-
-```bash
-git clone <repository-url> linknlink-isg-box-se-armbian
-cd linknlink-isg-box-se-armbian
-```
-
 ## Build
 
-Build the raw Armbian image:
+Clone this repository and build the raw Armbian image:
 
 ```bash
+git clone https://github.com/luisdosreis/linknlink-isg-box-se-armbian.git
+cd linknlink-isg-box-se-armbian
 ./build.sh
 ```
 
@@ -210,12 +205,21 @@ Recommended first boot path:
 4. SSH to the box as `root`; the default password is `1234`.
 5. Complete Armbian first-login setup and change credentials immediately.
 
+## Home Assistant Container Setup
+
+The image includes post-first-boot setup helpers and templates for an optional
+Home Assistant Container stack. It does not install Docker, create
+`/opt/ha-stack`, or enable Home Assistant services during image build. After
+Armbian first-login setup completes, it asks whether to run `ha-setup`; Docker
+and `/opt/ha-stack` are installed only if the user agrees or later runs
+`sudo ha-setup`.
+
+See [docs/home-assistant-container.md](docs/home-assistant-container.md).
+
 ## Future Ideas
 
-- Add an optional image build profile with Home Assistant preinstalled and ready
-  to run.
-- Add an optional first-boot flow that installs and configures Home Assistant
-  after network setup.
+- Add an optional guided flow for configuring Home Assistant radios after
+  `ha-setup` completes.
 
 <a href="https://www.buymeacoffee.com/luismarcalreis" target="_blank" title="buymeacoffee">
   <img src="https://iili.io/JoQcIJS.md.png"  alt="buymeacoffee-black-badge" style="width: 104px;">
