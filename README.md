@@ -164,7 +164,7 @@ sudo ./install.sh
 
 The launcher checks access to GitHub before downloading anything. If the box is
 offline, it stops and tells the user to configure Ethernet or Wi-Fi first. It
-then clones `https://github.com/luisdosreis/linknlink-ha-app.git` and runs that
+then clones `https://github.com/luisdosreis/armbian-ha-app.git` and runs that
 repository's `install.sh`.
 
 The external source can be changed without rebuilding the image:

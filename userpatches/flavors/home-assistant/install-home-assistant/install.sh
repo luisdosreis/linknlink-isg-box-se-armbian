@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HA_APP_REPOSITORY_URL="${HA_APP_REPOSITORY_URL:-https://github.com/luisdosreis/linknlink-ha-app.git}"
+HA_APP_REPOSITORY_URL="${HA_APP_REPOSITORY_URL:-https://github.com/luisdosreis/armbian-ha-app.git}"
 HA_APP_REF="${HA_APP_REF:-main}"
 HA_APP_INSTALLER="${HA_APP_INSTALLER:-install.sh}"
 checkout_dir=""
@@ -47,7 +47,7 @@ if ! git ls-remote --exit-code "$HA_APP_REPOSITORY_URL" "$HA_APP_REF" >/dev/null
     die "cannot access ${HA_APP_REPOSITORY_URL} at ref ${HA_APP_REF}"
 fi
 
-checkout_dir="$(mktemp -d /tmp/linknlink-ha-app.XXXXXX)"
+checkout_dir="$(mktemp -d /tmp/armbian-ha-app.XXXXXX)"
 git clone --depth=1 --branch "$HA_APP_REF" "$HA_APP_REPOSITORY_URL" "$checkout_dir/repository"
 
 installer_path="${checkout_dir}/repository/${HA_APP_INSTALLER}"
