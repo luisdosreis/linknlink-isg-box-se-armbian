@@ -18,10 +18,6 @@ Development discussion: https://forum.armbian.com/topic/58945-trying-to-boot-arm
 | Server | `./build.sh server` | Headless Armbian server, SSH, NetworkManager, and board drivers |
 | Desktop | `./build.sh desktop` | Server base plus the Armbian XFCE mid-tier desktop |
 
-Home Assistant and `ha-app` are not embedded in these images. Install the
-independent [`armbian-ha-app`](https://github.com/luisdosreis/armbian-ha-app)
-package on the server or desktop flavor after first boot.
-
 ## Technical baseline
 
 - Armbian build framework: current upstream `main`.
@@ -178,9 +174,11 @@ Power-cycle the box after flashing. On first boot, connect Ethernet, find the
 DHCP address, connect over SSH as `root`, and complete Armbian's first-login
 password and user creation.
 
-## Install Home Assistant
+## Optional Home Assistant installation
 
-After completing Armbian first login on either image flavor:
+Home Assistant is not an image flavor and is not included in this repository.
+After completing Armbian first login on either the server or desktop image,
+install the independent `armbian-ha-app` project:
 
 ```bash
 git clone https://github.com/luisdosreis/armbian-ha-app.git
@@ -188,9 +186,8 @@ cd armbian-ha-app
 sudo ./install.sh
 ```
 
-Home Assistant installation and management are maintained independently in
-the `armbian-ha-app` repository, so the application can be updated without
-rebuilding or reflashing the Armbian image.
+Installation, management, updates and backup instructions are maintained in
+the [`armbian-ha-app` repository](https://github.com/luisdosreis/armbian-ha-app).
 
 ## Clean generated files
 
