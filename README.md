@@ -131,7 +131,35 @@ Normal builds use `FACTORY_AFP_CHIP=RK3528`, which writes the legacy-compatible
 header required by this device. `RK3528_RAW` is available only for testing the
 upstream modern encoding.
 
-## 5. Flash the eMMC
+## 5. Package and publish a release
+
+GitHub release assets must be smaller than 2 GiB. Keep the raw image locally
+for FactoryTool and publish an XZ-compressed copy. Install and authenticate the
+GitHub CLI once:
+
+```bash
+sudo apt install gh xz-utils
+gh auth login
+```
+
+Create a release from one or more finished images:
+
+```bash
+image-tools/publish-release.sh \
+  --tag v1.0.0 \
+  --title "LinknLink iSG Box SE v1.0.0" \
+  output/factory/apftool-rs-patched/<server-factorytool-image>.img \
+  output/factory/apftool-rs-patched/<desktop-factorytool-image>.img
+```
+
+The script preserves each `.img`, creates `.img.xz` and `.img.xz.sha256`,
+checks archive integrity and GitHub's per-file limit, then creates the release
+and uploads all generated assets. The tag targets the current commit by
+default, so push that commit before publishing. Use `--prepare-only` to package
+files without contacting GitHub. Run `image-tools/publish-release.sh --help`
+for draft, prerelease, notes, target, repository and compression-level options.
+
+## 6. Flash the eMMC
 
 Put the box into Rockchip Loader or Maskrom mode and verify detection:
 
