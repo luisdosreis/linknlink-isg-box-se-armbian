@@ -8,7 +8,7 @@ flavor="server"
 
 usage() {
     cat <<'EOF'
-usage: ./build.sh [server|desktop|home-assistant] [armbian-build-dir]
+usage: ./build.sh [server|desktop] [armbian-build-dir]
 
 Build a LinknLink iSG Box SE Armbian image using a named userpatch config.
 The default flavor is server and the default Armbian checkout is ./build.
@@ -30,7 +30,7 @@ if [[ -n "${1:-}" ]]; then
 fi
 
 case "$flavor" in
-    server|desktop|home-assistant) ;;
+    server|desktop) ;;
     *)
         echo "Unknown image flavor: $flavor" >&2
         usage >&2

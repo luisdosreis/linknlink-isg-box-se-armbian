@@ -3,7 +3,7 @@
 
 function extension_prepare_config__set_linknlink_image_flavor() {
 	case "${LINKNLINK_IMAGE_FLAVOR:-}" in
-		server|desktop|home-assistant)
+		server|desktop)
 			EXTRA_IMAGE_SUFFIXES+=("-${LINKNLINK_IMAGE_FLAVOR}")
 			;;
 		*)

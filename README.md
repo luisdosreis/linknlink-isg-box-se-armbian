@@ -17,11 +17,10 @@ Development discussion: https://forum.armbian.com/topic/58945-trying-to-boot-arm
 | --- | --- | --- |
 | Server | `./build.sh server` | Headless Armbian server, SSH, NetworkManager, and board drivers |
 | Desktop | `./build.sh desktop` | Server base plus the Armbian XFCE mid-tier desktop |
-| Home Assistant | `./build.sh home-assistant` | Server base plus an external Home Assistant installer in `~/install-home-assistant` |
 
-Home Assistant and `ha-app` are not embedded in this repository or installed
-during image creation. The Home Assistant flavor only provides a launcher that
-downloads the independent application repository after first boot.
+Home Assistant and `ha-app` are not embedded in these images. Install the
+independent [`armbian-ha-app`](https://github.com/luisdosreis/armbian-ha-app)
+package on the server or desktop flavor after first boot.
 
 ## Technical baseline
 
@@ -34,12 +33,11 @@ downloads the independent application repository after first boot.
 - Factory image: current upstream `afptool-rs` with the LinknLink RK3528 legacy
   header compatibility adjustment.
 
-The three Armbian configurations are standard named userpatch configs:
+The two Armbian configurations are standard named userpatch configs:
 
 ```text
 userpatches/config-linknlink-server.conf
 userpatches/config-linknlink-desktop.conf
-userpatches/config-linknlink-home-assistant.conf
 ```
 
 ## 1. Prepare the build host
@@ -83,7 +81,6 @@ Build one flavor:
 ```bash
 ./build.sh server
 ./build.sh desktop
-./build.sh home-assistant
 ```
 
 Raw images are written to:
@@ -107,8 +104,8 @@ cd armbian-build
 ./compile.sh linknlink-server build
 ```
 
-Replace `linknlink-server` with `linknlink-desktop` or
-`linknlink-home-assistant` for the other configurations.
+Replace `linknlink-server` with `linknlink-desktop` for the desktop
+configuration.
 
 `install-userpatches.sh` synchronizes this project's complete `userpatches/`
 tree with `--delete`; use a dedicated Armbian checkout because unrelated
@@ -153,26 +150,19 @@ Power-cycle the box after flashing. On first boot, connect Ethernet, find the
 DHCP address, connect over SSH as `root`, and complete Armbian's first-login
 password and user creation.
 
-## Home Assistant flavor
+## Install Home Assistant
 
-After completing Armbian first login:
+After completing Armbian first login on either image flavor:
 
 ```bash
-cd ~/install-home-assistant
+git clone https://github.com/luisdosreis/armbian-ha-app.git
+cd armbian-ha-app
 sudo ./install.sh
 ```
 
-The launcher checks access to GitHub before downloading anything. If the box is
-offline, it stops and tells the user to configure Ethernet or Wi-Fi first. It
-then clones `https://github.com/luisdosreis/armbian-ha-app.git` and runs that
-repository's `install.sh`.
-
-The external source can be changed without rebuilding the image:
-
-```bash
-sudo HA_APP_REPOSITORY_URL=https://github.com/example/ha-app.git \
-  HA_APP_REF=main ./install.sh
-```
+Home Assistant installation and management are maintained independently in
+the `armbian-ha-app` repository, so the application can be updated without
+rebuilding or reflashing the Armbian image.
 
 ## Clean generated files
 
