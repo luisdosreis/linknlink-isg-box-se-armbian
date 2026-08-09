@@ -1,0 +1,14 @@
+[Unit]
+Description=Prepare stable Ethernet MAC for eth0
+DefaultDependencies=no
+Before=NetworkManager.service
+After=sys-subsystem-net-devices-eth0.device systemd-machine-id-commit.service
+Wants=sys-subsystem-net-devices-eth0.device
+ConditionPathExists=!/var/lib/linknlink/eth0-mac.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/linknlink-eth0-mac
+
+[Install]
+WantedBy=NetworkManager.service

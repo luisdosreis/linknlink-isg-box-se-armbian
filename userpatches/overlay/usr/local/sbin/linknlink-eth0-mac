@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+connection_file="/etc/NetworkManager/system-connections/eth0-dhcp.nmconnection"
+state_dir="/var/lib/linknlink"
+done_file="${state_dir}/eth0-mac.done"
+
+valid_mac() {
+    [[ "${1:-}" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || return 1
+    [[ "$1" != "00:00:00:00:00:00" && "$1" != "ff:ff:ff:ff:ff:ff" ]]
+}
+
+is_locally_administered() {
+    local first
+    first=$((16#${1%%:*}))
+    ((first & 2))
+}
+
+write_connection() {
+    local mac="${1:-}"
+
+    {
+        printf '%s\n' '[connection]'
+        printf '%s\n' 'id=eth0-dhcp'
+        printf '%s\n' 'type=ethernet'
+        printf '%s\n' 'interface-name=eth0'
+        printf '%s\n' 'autoconnect=true'
+        printf '\n'
+        if [[ -n "$mac" ]]; then
+            printf '%s\n' '[ethernet]'
+            printf 'cloned-mac-address=%s\n' "$mac"
+            printf '\n'
+        fi
+        printf '%s\n' '[ipv4]'
+        printf '%s\n' 'method=auto'
+        printf '\n'
+        printf '%s\n' '[ipv6]'
+        printf '%s\n' 'method=auto'
+        printf '%s\n' 'addr-gen-mode=default'
+    } >"$connection_file"
+
+    chmod 0600 "$connection_file"
+}
+
+hash_input() {
+    local serial nvmem nvmem_hash machine_id
+
+    if [[ -r /proc/device-tree/serial-number ]]; then
+        serial="$(tr -d '\0' </proc/device-tree/serial-number || true)"
+        if [[ -n "$serial" && "$serial" != "0000000000000000" ]]; then
+            printf 'dt-serial:%s' "$serial"
+            return 0
+        fi
+    fi
+
+    for nvmem in /sys/bus/nvmem/devices/*/nvmem; do
+        [[ -r "$nvmem" ]] || continue
+        if [[ -s "$nvmem" ]]; then
+            nvmem_hash="$(sha256sum "$nvmem" 2>/dev/null | awk '{print $1}' || true)"
+            if [[ -n "$nvmem_hash" ]]; then
+                printf 'nvmem:%s' "$nvmem_hash"
+                return 0
+            fi
+        fi
+    done
+
+    if [[ -r /etc/machine-id ]]; then
+        machine_id="$(cat /etc/machine-id || true)"
+        if [[ -n "$machine_id" ]]; then
+            printf 'machine-id:%s' "$machine_id"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+derive_local_mac() {
+    local seed hex first
+
+    if seed="$(hash_input)"; then
+        hex="$(printf '%s' "$seed" | sha256sum | awk '{print $1}')"
+    else
+        hex="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+    fi
+    first=$(((16#${hex:0:2} & 254) | 2))
+
+    printf '%02x:%s:%s:%s:%s:%s\n' \
+        "$first" "${hex:2:2}" "${hex:4:2}" "${hex:6:2}" "${hex:8:2}" "${hex:10:2}"
+}
+
+current_mac=""
+if [[ -r /sys/class/net/eth0/address ]]; then
+    current_mac="$(cat /sys/class/net/eth0/address || true)"
+fi
+
+if valid_mac "$current_mac" && ! is_locally_administered "$current_mac"; then
+    write_connection ""
+    install -d -m 0755 "$state_dir"
+    printf 'factory\n' >"$done_file"
+    logger -t linknlink-eth0-mac "preserving factory MAC ${current_mac}"
+    exit 0
+fi
+
+generated_mac="$(derive_local_mac)"
+write_connection "$generated_mac"
+install -d -m 0755 "$state_dir"
+printf '%s\n' "$generated_mac" >"$done_file"
+logger -t linknlink-eth0-mac "using stable local MAC ${generated_mac}"

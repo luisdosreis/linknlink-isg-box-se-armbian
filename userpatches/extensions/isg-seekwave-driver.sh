@@ -1,3 +1,6 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2154 # Armbian provides these extension hook globals.
+
 function pre_package_kernel_image__build_isg_seekwave_driver() {
 	local src_dir="${USERPATCHES_PATH}/drivers/seekwave-swt6621s-recon/sources/seekwave-swt6621s"
 	local platform_header_src="${USERPATCHES_PATH}/drivers/seekwave-swt6621s-recon/include/linux/platform_data/skw_platform_data.h"
@@ -11,8 +14,8 @@ function pre_package_kernel_image__build_isg_seekwave_driver() {
 	local built_module
 
 	if [[ ! -f "${src_dir}/Makefile" ]]; then
-		display_alert "Extension: ${EXTENSION}: missing SWT6621S driver" "${src_dir}" "warn"
-		return 0
+		display_alert "Extension: ${EXTENSION}: missing SWT6621S driver" "${src_dir}" "err"
+		exit 1
 	fi
 
 	if [[ ! -f "${platform_header_src}" ]]; then
@@ -116,6 +119,11 @@ function pre_customize_image__enable_isg_seekwave_modules() {
 	local firmware_path
 
 	display_alert "Extension: ${EXTENSION}: enabling SeekWave autoload" "swt6621s_wifi + skw_sdio_lite + skwbt" "info"
+	if [[ ! -d "${seekwave_firmware_src}" ]]; then
+		display_alert "Extension: ${EXTENSION}: missing SeekWave firmware" "${seekwave_firmware_src}" "err"
+		exit 1
+	fi
+
 	install -d -m 0755 "${modules_load_dir}"
 	cat >"${modules_load_file}" <<'EOF'
 skw_sdio_lite
@@ -124,10 +132,8 @@ skwbt
 EOF
 	chmod 0644 "${modules_load_file}"
 
-	if [[ ! -d "${seekwave_firmware_dir}" && -d "${seekwave_firmware_src}" ]]; then
-		install -d -m 0755 "${seekwave_firmware_dir}"
-		find "${seekwave_firmware_src}" -maxdepth 1 -type f -exec install -m 0644 {} "${seekwave_firmware_dir}/" \;
-	fi
+	install -d -m 0755 "${seekwave_firmware_dir}"
+	find "${seekwave_firmware_src}" -maxdepth 1 -type f -exec install -m 0644 {} "${seekwave_firmware_dir}/" \;
 
 	if [[ -d "${seekwave_firmware_dir}" ]]; then
 		install -d -m 0755 "${firmware_dir}" "${seekwave_firmware_dir}"
@@ -147,4 +153,19 @@ EOF
 			fi
 		done
 	fi
+
+	for firmware_name in \
+		SWT6621S_DRAM_SDIO.bin \
+		SWT6621S_IRAM_SDIO.bin \
+		SWT6621S_NV_SDIO.bin \
+		SWT6621S_SEEKWAVE_R00000.bin \
+		SWT6621S_SEEKWAVE_R00001.bin \
+		SWT6621S_SEEKWAVE_R04000.bin \
+		SWT6621S_SEEKWAVE_R04001.bin \
+		sv6160lite.nvbin; do
+		if [[ ! -f "${firmware_dir}/${firmware_name}" ]]; then
+			display_alert "Extension: ${EXTENSION}: required firmware was not installed" "${firmware_name}" "err"
+			exit 1
+		fi
+	done
 }

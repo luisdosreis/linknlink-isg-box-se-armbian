@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 function host_pre_docker_launch__isg_build_network_defaults() {
 	if [[ "${DOCKER_ARMBIAN_HOST_OS_UNAME:-}" == "Linux" ]]; then
 		display_alert "Extension: ${EXTENSION}: using host networking for Docker build" "--network=host" "info"

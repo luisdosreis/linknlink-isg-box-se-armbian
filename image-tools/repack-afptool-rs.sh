@@ -300,7 +300,7 @@ resolve_bootloader_blob() {
   fi
 
   for candidate in \
-    "$REPO_DIR/resources/blobs/rk3528/MiniLoaderAll.bin" \
+    "$REPO_DIR/image-tools/assets/rk3528/MiniLoaderAll.bin" \
     "$REPO_DIR/MiniLoaderAll.bin" \
     "$ARMBIAN_BUILD_DIR/cache/sources/rkbin-tools/rk35/rk3528_spl_loader_v1.07.104.bin"
   do
@@ -309,7 +309,7 @@ resolve_bootloader_blob() {
     return 0
   done
 
-  echo "Set FACTORY_BOOTLOADER_BLOB or add resources/blobs/rk3528/MiniLoaderAll.bin." >&2
+  echo "Set FACTORY_BOOTLOADER_BLOB or add image-tools/assets/rk3528/MiniLoaderAll.bin." >&2
   return 1
 }
 
