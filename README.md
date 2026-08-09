@@ -127,40 +127,34 @@ Normal builds use `FACTORY_AFP_CHIP=RK3528`, which writes the legacy-compatible
 header required by this device. `RK3528_RAW` is available only for testing the
 upstream modern encoding.
 
-## 5. Package and publish a release
+## 5. Package a release
 
 GitHub release assets must be smaller than 2 GiB. Keep the raw image locally
-for FactoryTool and publish an XZ-compressed copy. Install and authenticate the
-GitHub CLI once:
+for FactoryTool and publish an XZ-compressed copy:
 
 ```bash
-sudo apt install gh xz-utils
-gh auth login
+xz -T0 -6 -k output/factory/apftool-rs-patched/<factorytool-image>.img
+sha256sum output/factory/apftool-rs-patched/<factorytool-image>.img.xz \
+  > output/factory/apftool-rs-patched/<factorytool-image>.img.xz.sha256
 ```
 
-Create a release from one or more finished images:
+Upload the `.img.xz` and `.img.xz.sha256` files as GitHub release assets. Users
+must decompress the image before opening it in Rockchip FactoryTool:
 
 ```bash
-image-tools/publish-release.sh \
-  --tag v1.0.0 \
-  --title "LinknLink iSG Box SE v1.0.0" \
-  output/factory/apftool-rs-patched/<server-factorytool-image>.img \
-  output/factory/apftool-rs-patched/<desktop-factorytool-image>.img
+xz -dk <factorytool-image>.img.xz
 ```
-
-The script preserves each `.img`, creates `.img.xz` and `.img.xz.sha256`,
-checks archive integrity and GitHub's per-file limit, then creates the release
-and uploads all generated assets. The tag targets the current commit by
-default, so push that commit before publishing. Use `--prepare-only` to package
-files without contacting GitHub. Run `image-tools/publish-release.sh --help`
-for draft, prerelease, notes, target, repository and compression-level options.
 
 ## 6. Flash the eMMC
 
 Put the box into Rockchip Loader or Maskrom mode and verify detection:
 
+Rockchip's proprietary `upgrade_tool` is not committed to this repository.
+Keep local copies of `upgrade_tool` and its `config.ini` under the ignored
+`local-scripts/` directory, or set `UPGRADE_TOOL` to another installation:
+
 ```bash
-export UPGRADE_TOOL=/path/to/upgrade_tool
+export UPGRADE_TOOL="$PWD/local-scripts/upgrade_tool"
 sudo "$UPGRADE_TOOL" ld
 ```
 
@@ -207,7 +201,6 @@ If a container created root-owned files under `build/`, use
 ```text
 userpatches/             Armbian board, configs, patches, extensions and overlay
 image-tools/             FactoryTool repacker and RK3528 loader asset
-test-scripts/            On-device hardware validation
 build.sh                 Flavor-aware Armbian build wrapper
 install-userpatches.sh   Copy userpatches into any Armbian checkout
 clean.sh                 Remove generated local build data

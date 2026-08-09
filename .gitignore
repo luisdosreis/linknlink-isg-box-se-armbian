@@ -4,6 +4,7 @@
 build/
 output/
 logs/
+/local-scripts/
 .firmware-backups/
 .env
 .env.*
