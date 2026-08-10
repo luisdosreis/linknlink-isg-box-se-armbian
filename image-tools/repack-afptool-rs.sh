@@ -7,8 +7,7 @@ WORK_DIR="${REPACK_WORK_DIR:-$REPO_DIR/.cache/$SCRIPT_NAME}"
 AFPTOOL_BIN="${AFPTOOL_BIN:-$WORK_DIR/bin/afptool-rs}"
 APFTOOL_RS_URL="${APFTOOL_RS_URL:-https://github.com/suyulin/apftool-rs.git}"
 APFTOOL_RS_REF="${APFTOOL_RS_REF:-main}"
-FACTORY_PACKER="afptool-rs"
-FACTORY_OUTPUT_DIR="${FACTORY_OUTPUT_DIR:-$REPO_DIR/output/factory/apftool-rs-patched}"
+FACTORY_OUTPUT_DIR="${FACTORY_OUTPUT_DIR:-$REPO_DIR/output/factory/afptool-rs}"
 FACTORY_WORK_DIR="${FACTORY_WORK_DIR:-$WORK_DIR/tmp}"
 FACTORY_AFP_CHIP="${FACTORY_AFP_CHIP:-RK3528}"
 FACTORY_BOOTLOADER_BLOB="${FACTORY_BOOTLOADER_BLOB:-}"
@@ -47,7 +46,7 @@ usage: image-tools/repack-afptool-rs.sh [options] [raw-image-path]
        image-tools/repack-afptool-rs.sh [options] [armbian-build-dir] [raw-image-path]
 
 Build a Rockchip FactoryTool image from an existing raw Armbian image using
-this repo's patched afptool-rs flow.
+current upstream afptool-rs.
 
 If raw-image-path is omitted, the latest .img under
 <armbian-build-dir>/output/images/ is used. If a single positional argument is
@@ -60,8 +59,8 @@ Options:
 Environment:
   REPACK_WORK_DIR       Override the default .cache/repack-afptool-rs/ path
   AFPTOOL_BIN           Write the rebuilt afptool-rs binary to this path
-  APFTOOL_RS_URL         afptool-rs Git repository (default: upstream)
-  APFTOOL_RS_REF         afptool-rs branch or tag to build (default: main)
+  APFTOOL_RS_URL        afptool-rs Git repository (default: upstream)
+  APFTOOL_RS_REF        afptool-rs branch or tag to build (default: main)
 EOF
 }
 
@@ -151,7 +150,7 @@ cleanup_path() {
   safe_rm_rf "$path"
 }
 
-build_patched_afptool() {
+build_afptool() {
   local tool_work_dir src_dir out_bin
   tool_work_dir="$WORK_DIR/apftool-rs"
   src_dir="$tool_work_dir/src"
@@ -174,57 +173,6 @@ build_patched_afptool() {
     git clone --depth=1 --branch "$APFTOOL_RS_REF" "$APFTOOL_RS_URL" "$src_dir"
   fi
 
-  if ! grep -q 'RK3528_LEGACY' "$src_dir/src/pack.rs"; then
-    python3 - <<'PY' "$src_dir"
-from pathlib import Path
-import sys
-
-src_dir = Path(sys.argv[1])
-
-main_rs = src_dir / "src/main.rs"
-pack_rs = src_dir / "src/pack.rs"
-unpack_rs = src_dir / "src/unpack.rs"
-
-main_text = main_rs.read_text()
-main_text = main_text.replace(
-    "Chip name (e.g., RK3588, RK3566, RK3562, RK3399, PX30, RK32XX); optional when rkfw-header.bin from unpack is present",
-    "Chip name (e.g., RK3588, RK3566, RK3562, RK3528, RK3399, PX30, RK32XX); optional when rkfw-header.bin from unpack is present",
-)
-main_rs.write_text(main_text)
-
-pack_text = pack_rs.read_text()
-old = '        "RK3566" | "RK3568" => Ok(0x38),\n        "RK3528" => Ok(0x39),'
-new = (
-    '        "RK3566" | "RK3568" => Ok(0x38),\n'
-    '        "RK3528" | "RK3528_LEGACY" | "RK3528_RAW" => Ok(0x39),'
-)
-if old not in pack_text:
-    raise SystemExit("expected RK3528 mapping not found in src/pack.rs")
-
-pack_text = pack_text.replace(old, new)
-old = 'pub fn encode_chip_field(chip: &str) -> Result<[u8; 4]> {\n    let family_code = chip_name_to_code(chip)?;'
-new = (
-    'pub fn encode_chip_field(chip: &str) -> Result<[u8; 4]> {\n'
-    '    // The LinknLink iSG Box SE FactoryTool loader requires the legacy\n'
-    '    // support-type field, rather than the modern ASCII "8253" encoding.\n'
-    '    if matches!(chip.to_uppercase().as_str(), "RK3528" | "RK3528_LEGACY") {\n'
-    '        return Ok([0x38, 0, 0, 0]);\n'
-    '    }\n\n'
-    '    let family_code = chip_name_to_code(chip)?;'
-)
-if old not in pack_text:
-    raise SystemExit("expected chip field encoder not found in src/pack.rs")
-pack_rs.write_text(pack_text.replace(old, new))
-
-unpack_text = unpack_rs.read_text()
-old = '            0x38 => chip = Some("RK3566/RK3568"),\n            0x39 => chip = Some("RK3528"),'
-new = '            0x38 => chip = Some("RK3528 legacy / RK3566 / RK3568"),\n            0x39 => chip = Some("RK3528 raw"),'
-if old not in unpack_text:
-    raise SystemExit("expected RK3528 unpack mapping not found in src/unpack.rs")
-unpack_rs.write_text(unpack_text.replace(old, new))
-PY
-  fi
-
   cargo build --quiet --release --manifest-path "$src_dir/Cargo.toml"
   install -Dm755 "$src_dir/target/release/afptool-rs" "$out_bin"
 
@@ -232,7 +180,7 @@ PY
   log_item "built binary" "$out_bin"
 }
 
-build_patched_afptool
+build_afptool
 
 find_latest_image() {
   find "$ARMBIAN_BUILD_DIR/output/images" -maxdepth 1 -type f -name '*.img' | sort | tail -n 1
@@ -247,6 +195,7 @@ cleanup_previous_factory_outputs() {
   log_section "Clean previous FactoryTool images"
   mapfile -d '' -t previous_outputs < <(find "$FACTORY_OUTPUT_DIR" -maxdepth 1 \( \
     -type f -name '*-factorytool.img' -o \
+    -type f -name '*-factorytool.img.sha256' -o \
     -type d -name '*-factorytool.img.dump' \
   \) -print0)
 
@@ -300,7 +249,7 @@ resolve_bootloader_blob() {
   fi
 
   for candidate in \
-    "$REPO_DIR/image-tools/assets/rk3528/MiniLoaderAll.bin" \
+    "$REPO_DIR/userpatches/blobs/rk3528/MiniLoaderAll.bin" \
     "$REPO_DIR/MiniLoaderAll.bin" \
     "$ARMBIAN_BUILD_DIR/cache/sources/rkbin-tools/rk35/rk3528_spl_loader_v1.07.104.bin"
   do
@@ -309,7 +258,7 @@ resolve_bootloader_blob() {
     return 0
   done
 
-  echo "Set FACTORY_BOOTLOADER_BLOB or add image-tools/assets/rk3528/MiniLoaderAll.bin." >&2
+  echo "Set FACTORY_BOOTLOADER_BLOB or add userpatches/blobs/rk3528/MiniLoaderAll.bin." >&2
   return 1
 }
 
@@ -443,6 +392,47 @@ run_afptool() {
   trap - RETURN
 }
 
+validate_factory_image() {
+  local image signature chip_field loader_signature stored_md5 calculated_md5
+  image="$1"
+
+  log_section "Validate FactoryTool image"
+
+  signature="$(dd if="$image" bs=1 count=4 status=none)"
+  [[ "$signature" == "RKFW" ]] || {
+    echo "Invalid RKFW signature in $image" >&2
+    return 1
+  }
+
+  chip_field="$(od -An -tx1 -j 21 -N 4 "$image" | tr -d '[:space:]')"
+  [[ "$chip_field" == "38323533" ]] || {
+    echo "Unexpected RK3528 support field in $image: $chip_field (expected 38323533)" >&2
+    return 1
+  }
+
+  loader_signature="$(dd if="$image" bs=1 skip=102 count=4 status=none)"
+  [[ "$loader_signature" == "LDR " ]] || {
+    echo "Unexpected loader signature in $image: $loader_signature (expected 'LDR ')" >&2
+    return 1
+  }
+
+  stored_md5="$(tail -c 32 "$image")"
+  [[ "$stored_md5" =~ ^[0-9a-f]{32}$ ]] || {
+    echo "Invalid trailing RKFW MD5 in $image" >&2
+    return 1
+  }
+  calculated_md5="$(head -c -32 "$image" | md5sum | awk '{print $1}')"
+  [[ "$calculated_md5" == "$stored_md5" ]] || {
+    echo "RKFW MD5 mismatch in $image" >&2
+    return 1
+  }
+
+  log_item "RKFW signature" "$signature"
+  log_item "support type" "3528"
+  log_item "loader signature" "$loader_signature"
+  log_item "RKFW MD5" "$stored_md5"
+}
+
 set_boot_env_value() {
   local env_file key value
   env_file="$1"
@@ -539,7 +529,7 @@ extract_partition_images() {
   rootfs_start=""
   rootfs_sectors=""
 
-  while read -r nr start sectors size name; do
+  while read -r _nr start sectors size name; do
     case "$name" in
       bootfs)
         boot_start="$start"
@@ -709,6 +699,12 @@ main() {
     return 1
   }
 
+  validate_factory_image "$out_img"
+  (
+    cd "$(dirname "$out_img")"
+    sha256sum "$(basename "$out_img")" >"$(basename "$out_img").sha256"
+  )
+
   if [[ "$FACTORY_KEEP_DUMP" != "yes" ]]; then
     cleanup_path "$dump_dir" "factory dump"
   fi
@@ -718,6 +714,7 @@ main() {
   log_section "FactoryTool image created"
   log_item "output" "$out_img"
   log_item "size" "$(du -h "$out_img" 2>/dev/null | awk '{print $1}')"
+  log_item "checksum" "${out_img}.sha256"
   trap - EXIT
 }
 

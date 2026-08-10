@@ -14,6 +14,7 @@ RK3528 board with a SeekWave SWT6621S SDIO Wi-Fi/Bluetooth combo.
 - Ethernet: 100M RJ45, wired to RK3528 `gmac0` RMII.
 - Wireless: SeekWave SWT6621S SDIO Wi-Fi 6/Bluetooth combo.
 - Product wireless spec: 1x1 2.4 GHz / 5 GHz 802.11ax, Bluetooth 5.4.
+- Boot chain: device-tested RK3528 vendor IDB with Armbian U-Boot.
 
 Device-tree aliases use kernel binding names, such as `ethernet0` and `mmc0`.
 Linux userspace names use the normal names exposed by the kernel and udev, such

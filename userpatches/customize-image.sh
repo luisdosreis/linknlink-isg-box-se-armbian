@@ -7,9 +7,30 @@ install_overlay() {
         exit 1
     }
 
-    cp -a /tmp/overlay/. /
+    # The overlay is bind-mounted from the build host and therefore carries the
+    # host user's UID, GID, and umask-derived directory modes. Archive mode must
+    # not be used here: it would apply those attributes to existing paths such
+    # as /, /etc, and /usr in the target image.
+    (
+        umask 022
+        cp -R --no-preserve=ownership /tmp/overlay/. /
+    )
+
+    chown root:root /etc/NetworkManager/system-connections/eth0-dhcp.nmconnection
     chmod 0600 /etc/NetworkManager/system-connections/eth0-dhcp.nmconnection
+    chown root:root /usr/local/sbin/linknlink-eth0-mac
     chmod 0755 /usr/local/sbin/linknlink-eth0-mac
+
+    local path owner_uid
+    for path in / /etc /usr /usr/local /usr/local/sbin \
+        /etc/NetworkManager/system-connections/eth0-dhcp.nmconnection \
+        /usr/local/sbin/linknlink-eth0-mac; do
+        owner_uid="$(stat -c '%u' "$path")"
+        if [[ "$owner_uid" != "0" ]]; then
+            echo "LinknLink image overlay left $path owned by UID $owner_uid; expected UID 0" >&2
+            exit 1
+        fi
+    done
 }
 
 configure_boot_environment() {
