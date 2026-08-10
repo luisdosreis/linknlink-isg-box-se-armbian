@@ -1,226 +1,226 @@
-# Armbian Linux Unofficial for LinknLink iSG Box SE
+# Armbian for LinknLink iSG Box SE
 
-Version: `v26.05 Rolling`
-Kernel: `6.1.115-vendor-rk35xx`
+Build and flash Armbian images for the LinknLink iSG Box SE: Rockchip RK3528,
+4 GB RAM, 64 GB eMMC, and SeekWave SWT6621S Wi-Fi/Bluetooth.
 
-Armbian build overlay for the LinknLink iSG Box SE - RK3528.
+See [HARDWARE.md](HARDWARE.md) for tested hardware and interface details.
+Development discussion is available on the
+[Armbian forum](https://forum.armbian.com/topic/58945-trying-to-boot-armbian-on-linknlink-isg-box-se/).
 
-Discussion and support here:
-https://forum.armbian.com/topic/58945-trying-to-boot-armbian-on-linknlink-isg-box-se/
+> [!WARNING]
+> This is an unofficial port. Flashing overwrites the internal eMMC and can
+> make the box unbootable. Back up important data and keep a working Rockchip
+> Loader/Maskrom recovery path.
 
-What you get:
+## Image flavors
 
-* A minimal Armbian server image with board's device tree
-* Wi-Fi and Bluetooth necessary blob files
-* Repack raw Armbian image as Rockchip FactoryTool image
-* Flashe to eMMC using Rockchip USB tools
+| Flavor | Build command | Description |
+| --- | --- | --- |
+| Server | `./build.sh server` | Headless Armbian with SSH, NetworkManager, and board drivers |
+| Desktop | `./build.sh desktop` | Server base with the Armbian XFCE mid-tier desktop |
 
-## Disclaimer
+Both flavors use Debian Bookworm, the Rockchip vendor 6.1 kernel, and the same
+board, Wi-Fi, Bluetooth, Ethernet, audio, HDMI, USB, and eMMC support.
 
-Use this at your own risk. Flashing unofficial firmware can brick hardware,
-erase data, break vendor recovery paths, and void warranty.
-I will not be held responsible for damaged devices, 
-or any other consequence of using this content.
+## 1. Prepare the build host
 
-## What This Image Includes
-
-- Armbian build framework from `https://github.com/armbian/build`.
-- Debian Bookworm userland by default: `RELEASE=bookworm`.
-- Rockchip RK35xx vendor kernel branch: `BRANCH=vendor`.
-- Validated Linux kernel family: RK35xx vendor 6.1.x, tested on
-  `6.1.115-vendor-rk35xx`.
-- Board DTS: `rk3528-linknlink-isg-box-se.dts`.
-- NetworkManager with DHCP Ethernet on `eth0`.
-- SSH server enabled for first login.
-- Wi-Fi userspace: `iw`, `wpasupplicant`, `network-manager`.
-- SeekWave SWT6621S SDIO Wi-Fi/Bluetooth driver build extension.
-- Rockchip FactoryTool repack support using a custom patched `apftool-rs`.
-
-## Hardware
-
-Board hardware mapping and tested external USB Zigbee adapters are documented in
-[HARDWARE.md](HARDWARE.md).
-
-## Sources
-
-The build is based on these upstream projects:
-
-- Armbian build: `https://github.com/armbian/build`
-- `apftool-rs`: `https://github.com/suyulin/apftool-rs`
-
-## Included Blobs and Runtime Artifacts
-
-- `resources/blobs/rk3528/MiniLoaderAll.bin`: RK3528 loader used by the
-  FactoryTool image because the generic loader did not initialize this box DDR
-  reliably.
-- `resources/firmware/seekwave-swt6621s/`: SeekWave SWT6621S firmware and NV
-  files.
-- `resources/drivers/seekwave-swt6621s-recon/`: reconstructed SeekWave
-  SWT6621S driver tree used to build `skw_sdio_lite.ko`, `swt6621s_wifi.ko`, and `skwbt.ko`.
-
-## Prerequisites
-
-A Debian or Ubuntu Linux build host with Docker enabled.
-
-Building has been tested on Debian GNU/Linux 13.4 `trixie` x86_64 with Linux `6.12.85+deb13-amd64`.
-
-Install the required host tools:
+Use a Debian or Ubuntu x86-64 host with Docker and at least 50 GB of free disk
+space:
 
 ```bash
 sudo apt update
-sudo apt install git rsync ca-certificates curl python3 docker.io cargo rustc util-linux coreutils e2fsprogs 7zip
+sudo apt install git rsync ca-certificates curl docker.io cargo rustc \
+  util-linux coreutils e2fsprogs 7zip libudev-dev libusb-1.0-0-dev \
+  dh-autoreconf pkg-config
 sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 ```
 
-If your Ubuntu release does not provide the `7zip` package, install
-`p7zip-full` instead. The repacker needs the `7z` command.
+Use `p7zip-full` instead of `7zip` if your distribution does not provide that
+package. Log out and back in after adding your account to the Docker group,
+then verify the host:
 
-Log out and back in after adding your user to the Docker group.
+```bash
+docker version
+df -h .
+```
 
-## Build
-
-Clone this repository and build the raw Armbian image:
+## 2. Clone the repository
 
 ```bash
 git clone https://github.com/luisdosreis/linknlink-isg-box-se-armbian.git
 cd linknlink-isg-box-se-armbian
-./build.sh
 ```
 
-Default build settings:
+All remaining commands run from this repository directory.
 
-```text
-BOARD=linknlink-isg-box-se
-BRANCH=vendor
-RELEASE=bookworm
-BUILD_DESKTOP=no
-KERNEL_CONFIGURE=no
-```
+## 3. Build an image
 
-Useful overrides:
+Build one flavor:
 
 ```bash
-RELEASE=bookworm ./build.sh
-BUILD_MINIMAL=yes ./build.sh
+./build.sh server
 ```
 
-The raw image is written under:
-
-```text
-build/output/images/
-```
-
-## Repack
-
-The box is flashed through Rockchip firmware format, not by writing the raw
-Armbian `.img` directly to removable media.
-
-Repack the latest raw image:
+or:
 
 ```bash
-image-tools/repack-afptool-rs.sh
+./build.sh desktop
 ```
 
-Or specify an image:
+The first build automatically creates a shallow Armbian checkout under
+`build/`. Images are written to `build/output/images/`.
+
+List the generated image:
 
 ```bash
-image-tools/repack-afptool-rs.sh build/output/images/<raw-image>.img
+ls -lh build/output/images/*.img
 ```
 
-Output:
-
-```text
-output/factory/apftool-rs-patched/<raw-image>-factorytool.img
-```
-
-The repacker:
-
-- fetches and builds the current upstream `afptool-rs` `main` on every run;
-- applies local RK3528 compatibility edits;
-- extracts `uboot`, `boot`, and `rootfs` from the raw image;
-- injects `resources/blobs/rk3528/MiniLoaderAll.bin`;
-- writes Rockchip parameter and package metadata;
-- packs RKAF and RKFW images.
-
-## Flash
-
-Connect the box in Rockchip Loader or Maskrom mode.
-
-Check that Rockchip tooling sees it:
+In the commands below, replace `<image-file>.img` with the filename displayed
+by this command. Verify it before flashing:
 
 ```bash
-export UPGRADE_TOOL=/path/to/upgrade_tool
-sudo "$UPGRADE_TOOL" ld
+cd build/output/images
+sha256sum --check "<image-file>.img.sha"
+cd ../../..
 ```
 
-Flash:
+## 4. Flash with rkdeveloptool (recommended)
+
+[`rkdeveloptool`](https://github.com/rockchip-linux/rkdeveloptool) is the
+open-source Linux flashing tool. The Loader-mode workflow below has been
+tested through a successful Armbian boot. Build and install it once:
 
 ```bash
-sudo "$UPGRADE_TOOL" uf output/factory/apftool-rs-patched/<raw-image>-factorytool.img
+mkdir -p .cache/tools
+git clone --depth=1 https://github.com/rockchip-linux/rkdeveloptool.git \
+  .cache/tools/rkdeveloptool
+cd .cache/tools/rkdeveloptool
+./autogen.sh
+./configure
+make
+sudo install -m 0755 rkdeveloptool /usr/local/bin/rkdeveloptool
+cd ../../..
 ```
 
-Power-cycle the box after the flash completes.
+Put the box into Rockchip USB flashing mode and check detection:
 
-## Alternative Flashing Tools
+```bash
+sudo rkdeveloptool ld
+```
 
-- Rockchip `upgrade_tool`: proprietary flashing utility used to flash the final
-  FactoryTool image.
-- `imgRePackerRK`: closed-source alternative repacker, not part of the
-  supported flow here.
+Continue only if the output reports `Loader`. If it reports `Maskrom`, use the
+tested Upgrade Tool method in the next section.
 
-## Optional Cleanup
+Write the raw image from sector zero, then reboot the box:
 
-Cleanup is not part of flashing a finished image. Use it only when you want to
-remove generated local build and repack artifacts before starting a fresh build.
+```bash
+sudo rkdeveloptool wl 0 "build/output/images/<image-file>.img"
+sudo rkdeveloptool rd
+```
 
-Preview cleanup:
+## 5. Flash with Rockchip Upgrade Tool (alternative)
+
+Rockchip's proprietary Linux `upgrade_tool` cannot use the raw Armbian image
+with its `UF` command. First create and verify an RKFW upgrade image from the
+raw image:
+
+```bash
+image-tools/repack-afptool-rs.sh "build/output/images/<image-file>.img"
+ls -lh output/factory/afptool-rs/*-factorytool.img
+```
+
+The output filename is the raw image name with `-factorytool` added. Use the
+same `<image-file>` name below, then verify it:
+
+```bash
+cd output/factory/afptool-rs
+sha256sum --check "<image-file>-factorytool.img.sha256"
+cd ../../..
+```
+
+Download and configure the proprietary tool by following the
+[Linux Upgrade Tool distribution instructions](https://github.com/vicharak-in/Linux_Upgrade_Tool).
+Version 2.17 has been tested from Maskrom mode through a successful Armbian
+first boot.
+
+Print the absolute image path from this repository:
+
+```bash
+realpath "output/factory/afptool-rs/<image-file>-factorytool.img"
+```
+
+Then enter the downloaded Linux Upgrade Tool directory. Following its
+documented usage, detect the box and flash using the absolute path printed
+above:
+
+```bash
+cd "<linux-upgrade-tool-directory>"
+sudo ./upgrade_tool ld
+sudo ./upgrade_tool uf "<absolute-path-to-upgrade-image>"
+```
+
+## 6. First boot
+
+Power-cycle the box if the flashing tool does not reboot it. Connect Ethernet,
+find the assigned DHCP address, then connect as `root` and complete Armbian's
+first-login password and user setup:
+
+```bash
+ssh "root@<box-ip-address>"
+```
+
+## Optional Home Assistant installation
+
+Home Assistant is not an image flavor. After completing the first boot on
+either image, install the independent
+[`armbian-ha-app`](https://github.com/luisdosreis/armbian-ha-app) project:
+
+```bash
+git clone https://github.com/luisdosreis/armbian-ha-app.git
+cd armbian-ha-app
+sudo ./install.sh
+```
+
+## Update and rebuild
+
+Run these commands from the repository directory.
+
+Update this project:
+
+```bash
+git pull --ff-only
+```
+
+Update the existing Armbian build framework checkout. Skip this step when
+`build/` does not exist; the first `./build.sh` run creates it automatically:
+
+```bash
+git -C build pull --ff-only
+```
+
+Rebuild the Server image:
+
+```bash
+./build.sh server
+```
+
+Or rebuild the Desktop image:
+
+```bash
+./build.sh desktop
+```
+
+## Clean generated files
+
+Preview cleanup first, then remove generated build data:
 
 ```bash
 ./clean.sh --dry-run
-```
-
-Remove generated artifacts:
-
-```bash
 ./clean.sh
 ```
 
-If Docker or Armbian left root-owned files in `build/`, run:
-
-```bash
-sudo ./clean.sh
-```
-
-Cleanup removes generated local state only: `.cache/`, `output/`, `build/`,
-`.firmware-backups/`, and local `*.img.dump/` directories.
-
-## First Boot
-
-Recommended first boot path:
-
-1. Connect Ethernet to a DHCP network.
-2. Power on the box.
-3. Find the DHCP address from your router or DHCP server.
-4. SSH to the box as `root`; the default password is `1234`.
-5. Complete Armbian first-login setup and change credentials immediately.
-
-## Home Assistant Container Setup
-
-The image includes post-first-boot setup helpers and templates for an optional
-Home Assistant Container stack. It does not install Docker, create
-`/opt/ha-stack`, or enable Home Assistant services during image build. After
-Armbian first-login setup completes, it asks whether to run `ha-setup`; Docker
-and `/opt/ha-stack` are installed only if the user agrees or later runs
-`sudo ha-setup`.
-
-See [docs/home-assistant-container.md](docs/home-assistant-container.md).
-
-## Future Ideas
-
-- Add an optional guided flow for configuring Home Assistant radios after
-  `ha-setup` completes.
-
-<a href="https://www.buymeacoffee.com/luismarcalreis" target="_blank" title="buymeacoffee">
-  <img src="https://iili.io/JoQcIJS.md.png"  alt="buymeacoffee-black-badge" style="width: 104px;">
-</a>
+If Docker created root-owned files, run `sudo ./clean.sh`. Cleanup removes
+generated `build/`, `.cache/`, `output/`, firmware backups, and image dump
+directories; it does not remove repository source files.

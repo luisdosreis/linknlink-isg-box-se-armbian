@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 function extension_prepare_config__isg_fast_kernel_config() {
 	display_alert "${EXTENSION}: reducing kernel surface" "drop unused wifi, media, and staging drivers for faster iSG Box SE builds" "warn"
 }

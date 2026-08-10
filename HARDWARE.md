@@ -12,8 +12,9 @@ RK3528 board with a SeekWave SWT6621S SDIO Wi-Fi/Bluetooth combo.
 - Power input: DC 5 V / 2 A, 5.5 x 2.1 mm barrel jack.
 - External ports: DC power, AV/headphone jack, HDMI, RJ45 Ethernet, USB1, USB2.
 - Ethernet: 100M RJ45, wired to RK3528 `gmac0` RMII.
-- Wireless: SeekWave SWT6621S SDIO Wi-Fi/Bluetooth combo.
-- Product wireless spec: 2.4 GHz / 5 GHz Wi-Fi, Bluetooth 5.4.
+- Wireless: SeekWave SWT6621S SDIO Wi-Fi 6/Bluetooth combo.
+- Product wireless spec: 1x1 2.4 GHz / 5 GHz 802.11ax, Bluetooth 5.4.
+- Boot chain: device-tested RK3528 vendor IDB with Armbian U-Boot.
 
 Device-tree aliases use kernel binding names, such as `ethernet0` and `mmc0`.
 Linux userspace names use the normal names exposed by the kernel and udev, such
@@ -37,33 +38,12 @@ names.
 | Power LED | Not controlled by Linux | red LED | Fixed power indicator |
 | Blue user LED | GPIO4 PC1 | `/sys/class/leds/blue:user` | Working |
 
-## Supported External Hardware
+## Tested External Hardware
 
 | Hardware | USB ID | Linux driver | Linux name | Status |
 | --- | --- | --- | --- | --- |
 | LinknLink RD1100+ USB Zigbee 3.0 dongle | `1a86:7523` | `ch341`, `usbserial` | `/dev/ttyUSB0`, `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` | Working - USB serial adapter detected |
 | SONOFF Zigbee 3.0 USB Dongle Plus V2 / ZBDongle-E | `1a86:55d4` | `cdc_acm` | `/dev/ttyACM0`, `/dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_<serial>-if00` | Working - USB ACM serial adapter detected |
 
-Home Assistant ZHA serial paths:
-
-```text
-LinknLink RD1100+:
-  /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-
-SONOFF ZBDongle-E:
-  /dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_<serial>-if00
-```
-
-Zigbee2MQTT serial examples:
-
-```yaml
-# LinknLink RD1100+
-serial:
-  port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-  adapter: ember
-
-# SONOFF ZBDongle-E
-serial:
-  port: /dev/serial/by-id/usb-ITEAD_SONOFF_Zigbee_3.0_USB_Dongle_Plus_V2_<serial>-if00
-  adapter: ember
-```
+Use the stable `/dev/serial/by-id/` paths when assigning USB radios to an
+application. Those paths survive normal device enumeration-order changes.
